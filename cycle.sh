@@ -1,16 +1,19 @@
 #!/bin/sh
-# Um ciclo do loop MyHumanBelieves: colhe comentarios novos, rebuilda o site
-# e publica se houver mudanca. A CLASSIFICACAO dos comentarios novos (planilha)
-# e feita pelo agente Claude quando acorda — este script so faz a parte mecanica.
+# Um ciclo do loop MyHumanBelieves (parte mecanica).
+# Colhe comentarios novos. Em ciclo SECO (new=0) nao mexe no git — evita
+# commits-ruido a cada 10min. So quando ha material novo o harvest e guardado
+# e o agente Claude classifica na planilha + rebuilda + publica.
 cd /d/projects/myhumanbelieves || exit 1
-N=$(date -u +%Y%m%d-%H%M%S)
-node collect.mjs > "data/harvest-$N.json" 2>data/last-error.log || { echo "HARVEST FAIL"; cat data/last-error.log; exit 1; }
-node -e "const j=require('./data/harvest-$N.json');console.log('NEW_COMMENTS:',j.new)"
-node build-site.mjs
-git add -A
-if ! git diff --cached --quiet; then
-  git -c user.name=BanePlayss -c user.email=bpgam3s@gmail.com commit -q -m "auto: harvest $N" -m "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
-  git push -q origin main && echo "PUSHED"
+TMP="data/.harvest-tmp.json"
+node collect.mjs > "$TMP" 2>data/last-error.log || { echo "HARVEST FAIL"; cat data/last-error.log; exit 1; }
+NEW=$(node -e "console.log(require('./data/.harvest-tmp.json').new)")
+echo "NEW_COMMENTS: $NEW"
+if [ "$NEW" -gt 0 ]; then
+  N=$(date -u +%Y%m%d-%H%M%S)
+  mv "$TMP" "data/harvest-$N.json"
+  echo "SAVED: data/harvest-$N.json"
+  node -e "const j=require('./data/harvest-$N.json');j.comments.forEach(c=>console.log('---',c.where,'|',c.author,'| id',c.id,'| parent:',(c.parent_id||'(top)'),'\n',c.content,'\n'))"
 else
-  echo "NO_CHANGES"
+  rm -f "$TMP"
+  echo "DRY — no git activity"
 fi
