@@ -53,7 +53,7 @@ for (const p of POSTS) {
   } while (cursor);
 }
 
-const fresh = all.filter(c => !seen.has(c.id));
+const fresh = all.filter(c => !seen.has(c.id) && c.author !== CREDS.name);
 for (const c of fresh) seen.add(c.id);
 mkdirSync(dirname(SEEN_PATH), { recursive: true });
 writeFileSync(SEEN_PATH, JSON.stringify([...seen], null, 0));
